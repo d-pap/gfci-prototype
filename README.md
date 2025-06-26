@@ -16,6 +16,12 @@ The aim is to provide insights into things like:
 - Industry trends and company insights
 - And more
 
+## Tools and Tech
+
+- Python
+- PostgreSQL
+- Docker
+
 ## Data Sources
 
 - Adzuna API: Job postings data
