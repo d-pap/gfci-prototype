@@ -3,7 +3,7 @@ V2 Enrichment for Adzuna jobs
 Processes jobs from bronze.raw_jobs to silver.jobs_v2
 Includes gold schema aggregations
 """
-from transform.utils import get_is_remote, get_industry, get_job_type, get_yoe, get_education, categorize_seniority, get_cbsa_code
+from transform.utils import get_is_remote, get_industry, get_job_type, get_yoe, get_education, categorize_role, get_cbsa_code
 from datetime import datetime, timezone, date
 import json
 import pandas as pd
@@ -71,6 +71,7 @@ def enrich_adzuna_job_v2(raw_job_record):
         
         # Basic fields
         'title': title,
+        'description': description,
         'company': company,
         'location': display_name,
         'city': city,
@@ -104,7 +105,7 @@ def enrich_adzuna_job_v2(raw_job_record):
         'longitude': longitude,
         
         # Derived fields
-        'seniority': categorize_seniority(title, description),
+        'seniority': categorize_role(title, description, salary_min, salary_max, city),
         'is_remote': get_is_remote(title, description),
         'industry': get_industry(title, company, category_label),
         'job_type': get_job_type(description),
@@ -200,13 +201,13 @@ def run_adzuna_enrichment_v2():
             # Build the upsert query
             conn.execute(text("""
                 INSERT INTO silver.jobs_v2 (
-                    source, job_id, title, company, location, city, county, state, 
+                    source, job_id, title, description, company, location, city, county, state, 
                     state_code, cbsa_code, category, category_label, salary_min, 
                     salary_max, post_date, first_seen, last_seen, times_seen, 
                     is_active, url, latitude, longitude, seniority, is_remote, 
                     industry, job_type, yoe_min, education
                 ) VALUES (
-                    :source, :job_id, :title, :company, :location, :city, :county, 
+                    :source, :job_id, :title, :description, :company, :location, :city, :county, 
                     :state, :state_code, :cbsa_code, :category, :category_label, 
                     :salary_min, :salary_max, :post_date, :first_seen, :last_seen, 
                     :times_seen, :is_active, :url, :latitude, :longitude, :seniority, 
@@ -214,6 +215,7 @@ def run_adzuna_enrichment_v2():
                 )
                 ON CONFLICT (source, job_id) DO UPDATE SET
                     title = EXCLUDED.title,
+                    description = EXCLUDED.description,
                     company = EXCLUDED.company,
                     location = EXCLUDED.location,
                     city = EXCLUDED.city,

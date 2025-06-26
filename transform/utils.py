@@ -44,18 +44,37 @@ def get_state_abbreviation(state_input):
     # Try to find full state name
     return state_name_to_abbrev.get(normalized_input, state_input)
 
-def categorize_seniority(title, description=""):
+def check_title_keywords(title):
+    role = title.lower()
+    senior_role_tags = ('sr', 'senior', 'iv', 'lead', 'principal', 'director', 'head', 'vp', 'executive', 'president')
+    mid_tags = ('ii', 'experienced', 'manager', 'iii')
+    junior_role_tags = ('jr', 'associate', 'junior', 'intern', 'entry level')
+    
+    if any(tag in role for tag in senior_role_tags):    
+        return "sr"
+    if any(tag in role for tag in mid_tags):
+        return "mid"
+    return "jr"
+
+def check_salary_range(salary_min, salary_max):
     """
-    Categorize job seniority based on title and description
+    Categorize salary range into seniority level
     Returns: 'jr', 'mid', or 'sr'
+    
+    ! SHOULD BE REPLACED WITH A MORE ROBUST SALARY RANGE CHECK AND TAILORING THE CHECK TO THE CITY-------------------------------------------------
     """
-    # NEW VERSION TO CLASSIFY SENIORITY LEVEL:
-    # 1) look for explicit YOE (including ranges)
-    # 2) if none, scan title for level indicators
-    # 3) default to mid
+    salary_avg = (salary_min + salary_max) / 2
     
-    txt = " ".join([title or "", description or ""]).lower()
     
+    if salary_min < 74000:
+        return "jr"
+    elif salary_min > 100000:
+        return "sr"
+    else:
+        return "mid"
+    
+def check_description_keywords(txt):
+
     # 1) regex for YOE
     # catches "2 years", "3-5 years", "4+ yrs", or "at least 7 years"
     patterns = [
@@ -72,27 +91,85 @@ def categorize_seniority(title, description=""):
             years = int(m.group(1))
             if years <= 3:
                 return "jr"
-            if years <= 5:
-                return "mid"
-            return "sr"
+            if years >= 7:
+                return "sr"
+            return "mid"
+
+
+def categorize_role(title, description, salary_min, salary_max, city):
+    """
+    Determine job seniority using hierarchical approach:
+    1. Title keywords (highest confidence)
+    2. Salary-based classification (medium confidence) 
+    3. Description keywords (lower confidence)
+    4. Default to 'mid' if unclear
+    """
+    role = title.lower()
+    desc = description.lower()
+    txt = " ".join([role or "", desc or ""]).lower()
+    
+    title_seniority = check_title_keywords(title)
+    if title_seniority:
+        return title_seniority
+    
+    if salary_min and salary_max:
+        salary_seniority = check_salary_range(salary_min, salary_max)
+        if salary_seniority:
+            return salary_seniority
+    
+    if description:
+        description_seniority = check_description_keywords(description)
+
+
+# def categorize_seniority(title, description=""):
+#     """
+#     Categorize job seniority based on title and description
+#     Returns: 'jr', 'mid', or 'sr'
+#     """
+#     # NEW VERSION TO CLASSIFY SENIORITY LEVEL:
+#     # 1) look for explicit YOE (including ranges)
+#     # 2) if none, scan title for level indicators
+#     # 3) default to mid
+    
+#     txt = " ".join([title or "", description or ""]).lower()
+    
+#     # 1) regex for YOE
+#     # catches "2 years", "3-5 years", "4+ yrs", or "at least 7 years"
+#     patterns = [
+#         r'(\d+)\s*-\s*(\d+)\s*years?',
+#         r'(\d+)\+?\s*(?:years?|yrs?|yos?)',
+#         r'at\s*least\s*(\d+)\s*years?', 
+#         r'minimum\s*(?:of\s*)?(\d+)\s*years?'
+#     ]
+    
+#     for pat in patterns:
+#         m = re.search(pat, txt)
+#         if m:
+#             # if range, take the lower bound
+#             years = int(m.group(1))
+#             if years <= 3:
+#                 return "jr"
+#             if years <= 5:
+#                 return "mid"
+#             return "sr"
         
-    # 2) look for numeric "level" in title (I, II, III, etc.
-    if re.search(r'\b(level\s*(i|ii|iii|iv|v))\b', title.lower()):
-        lvl = title.lower().split("level")[-1].strip()
-        if lvl in ("i", "1"):   return "jr"
-        if lvl in ("ii","2"):   return "mid"
-        return "sr"
+#     # 2) look for numeric "level" in title (I, II, III, etc.
+#     if re.search(r'\b(level\s*(i|ii|iii|iv|v))\b', title.lower()):
+#         lvl = title.lower().split("level")[-1].strip()
+#         if lvl in ("i", "1"):   return "jr"
+#         if lvl in ("ii","2"):   return "mid"
+#         return "sr"
     
-    # 3) fallback title hints 
-    senior_tags = ('sr', 'lead', 'principal', 'director', 'head', 'vp', 'executive', 'team lead')
-    if any(tag in txt for tag in senior_tags):
-        return "sr"
-    junior_tags = ('jr', 'associate', 'junior', 'intern')
-    if any(tag in title.lower() for tag in junior_tags):
-        return "jr"
+#     # 3) fallback title hints 
+#     senior_tags = ('sr', 'lead', 'principal', 'director', 'head', 'vp', 'executive', 'team lead')
+#     if any(tag in txt for tag in senior_tags):
+#         return "sr"
+#     junior_tags = ('jr', 'associate', 'junior', 'intern')
+#     if any(tag in title.lower() for tag in junior_tags):
+#         return "jr"
     
-    # 4) default to mid
-    return "mid"
+#     # 4) default to mid
+#     return "mid"
 
 def get_is_remote(title, description=""):
     """
@@ -198,51 +275,6 @@ def standardize_location(city, county, state, location_raw, source):
         'location': standardized_location,  # "Chicago, IL"
         'county': standardized_county       # "Cook County" or ""
     }
-    
-# def standardize_category(category_raw, title, description, source):
-#     """
-#     Standardize job categories across sources
-#     """
-    
-#     if source == 'adzuna' and category_raw:
-#         # Clean up Adzuna categories
-#         return clean_adzuna_category(category_raw)
-    
-#     elif source == 'jsearch':
-#         # Infer category from title and description
-#         return infer_category_from_content(title, description)
-    
-#     return "Other"  # Default fallback
-
-# def clean_adzuna_category(category):
-#     """Clean Adzuna category format"""
-#     # "IT Jobs" -> "Technology"
-#     # "Retail Jobs" -> "Retail"
-#     category_mapping = {
-#         "IT Jobs": "Technology",
-#         "Retail Jobs": "Retail", 
-#         "Finance Jobs": "Finance",
-#         "Healthcare Jobs": "Healthcare",
-#         # ... add more mappings
-#     }
-    
-#     return category_mapping.get(category, category.replace(" Jobs", ""))
-
-# def infer_category_from_content(title, description):
-#     """Infer category from job title and description"""
-#     title_lower = title.lower()
-#     desc_lower = description.lower()
-    
-#     # Technology keywords
-#     if any(keyword in title_lower for keyword in ['data', 'analyst', 'engineer', 'developer', 'programmer']):
-#         return "Technology"
-    
-#     # Finance keywords  
-#     if any(keyword in title_lower for keyword in ['finance', 'accounting', 'financial']):
-#         return "Finance"
-    
-#     # Add more inference logic...
-#     return "Other"
 
 def standardize_job_type(job_type_raw, title, description, source):
     """

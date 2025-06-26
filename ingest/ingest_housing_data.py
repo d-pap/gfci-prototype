@@ -107,5 +107,5 @@ def ingest_zillow_csv(csv_path: Path, table_name: str):
     
 ########################################################################################
 if __name__ == '__main__':
-    ingest_zori_raw(Path('data/zori-6-19-2025.csv'))
+    ingest_zori_raw(Path('data/housing/zori-6-19-2025.csv'))
     

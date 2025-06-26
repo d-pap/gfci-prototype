@@ -26,8 +26,8 @@ TARGET_ROLES = [
         # "data engineer", "ml engineer", "quantitative analyst"
     ]
 HOUSING_DATASETS = {
-    'zori': Path('data/zori-6-19-2025.csv'),
-    #'zhvi': Path('data/zhvi-6-19-2025.csv')
+    'zori': Path('data/housing/zori-6-19-2025.csv'),
+    #'zhvi': Path('data/housing/zhvi-6-19-2025.csv')
 }
 
 def ingest_all_jobs(cities, roles):
