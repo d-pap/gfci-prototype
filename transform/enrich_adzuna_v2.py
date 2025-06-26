@@ -117,7 +117,30 @@ def run_adzuna_enrichment_v2():
     
     engine = get_engine()
     
-    # First, mark all jobs as inactive (they'll be reactivated if seen today)
+    # First, check if there are any jobs to process
+    check_query = """
+    SELECT COUNT(*) as jobs_to_process
+    FROM bronze.raw_jobs r
+    LEFT JOIN silver.jobs_v2 s 
+        ON s.source = r.source AND s.job_id = r.job_id
+    WHERE r.source = 'adzuna'
+        AND (
+            s.job_id IS NULL  -- New jobs
+            OR r.last_seen > s.last_seen  -- Updated jobs
+        )
+    """
+    
+    with engine.connect() as conn:
+        result = conn.execute(text(check_query))
+        jobs_to_process = result.scalar()
+    
+    if jobs_to_process == 0:
+        print('No new Adzuna jobs to enrich for v2')
+        return
+    
+    print(f"Found {jobs_to_process} jobs to process for v2")
+    
+    # Only mark jobs inactive if we actually have work to do
     with engine.begin() as conn:
         conn.execute(text("""
             UPDATE silver.jobs_v2 
